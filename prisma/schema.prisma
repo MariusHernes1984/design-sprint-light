@@ -1,0 +1,191 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkshopStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum WorkshopStep {
+  PREWORK
+  SESSIONS
+  CLUSTERING
+  HKV
+  IDEATION
+  PRIORITIZATION
+  MATRIX
+  CANVAS
+  RESULTS
+}
+
+enum ChallengeSource {
+  PREWORK
+  SESSION
+}
+
+enum ValueLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MatrixQuadrant {
+  PRIORITER_NA
+  STRATEGISKE_SATSINGER
+  RASKE_GEVINSTER
+  PARKER
+}
+
+model Facilitator {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  workshops    Workshop[]
+  createdAt    DateTime   @default(now())
+}
+
+model Workshop {
+  id            String         @id @default(uuid())
+  title         String
+  description   String?
+  customerName  String?
+  joinCode      String         @unique
+  status        WorkshopStatus @default(DRAFT)
+  currentStep   WorkshopStep   @default(PREWORK)
+  facilitatorId String
+  facilitator   Facilitator    @relation(fields: [facilitatorId], references: [id])
+  sessions      Session[]
+  participants  Participant[]
+  challenges    Challenge[]
+  clusters      Cluster[]
+  hkvQuestions  HkvQuestion[]
+  ideas         Idea[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Participant {
+  id         String      @id @default(uuid())
+  name       String
+  workshopId String
+  workshop   Workshop    @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  challenges Challenge[]
+  ideas      Idea[]
+  joinedAt   DateTime    @default(now())
+
+  @@unique([name, workshopId])
+}
+
+model Session {
+  id           String        @id @default(uuid())
+  title        String
+  sortOrder    Int           @default(0)
+  isActive     Boolean       @default(false)
+  currentStep  WorkshopStep  @default(SESSIONS)
+  workshopId   String
+  workshop     Workshop      @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  challenges   Challenge[]
+  clusters     Cluster[]
+  hkvQuestions HkvQuestion[]
+  ideas        Idea[]
+}
+
+model Challenge {
+  id            String          @id @default(uuid())
+  text          String
+  source        ChallengeSource
+  workshopId    String
+  workshop      Workshop        @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  session       Session?        @relation(fields: [sessionId], references: [id])
+  participantId String?
+  participant   Participant?    @relation(fields: [participantId], references: [id])
+  clusterId     String?
+  cluster       Cluster?        @relation(fields: [clusterId], references: [id])
+  createdAt     DateTime        @default(now())
+}
+
+model Cluster {
+  id           String        @id @default(uuid())
+  name         String
+  summary      String?
+  sortOrder    Int           @default(0)
+  workshopId   String
+  workshop     Workshop      @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  sessionId    String
+  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  challenges   Challenge[]
+  hkvQuestions HkvQuestion[]
+}
+
+model HkvQuestion {
+  id            String   @id @default(uuid())
+  problem       String
+  benefit       String
+  constraint    String
+  fullText      String
+  isAiGenerated Boolean  @default(false)
+  isApproved    Boolean  @default(false)
+  clusterId     String
+  cluster       Cluster  @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  workshopId    String
+  workshop      Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ideas         Idea[]
+  createdAt     DateTime @default(now())
+}
+
+model Idea {
+  id            String       @id @default(uuid())
+  title         String
+  description   String?
+  isAiGenerated Boolean      @default(false)
+  hkvQuestionId String
+  hkvQuestion   HkvQuestion  @relation(fields: [hkvQuestionId], references: [id], onDelete: Cascade)
+  workshopId    String
+  workshop      Workshop     @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  sessionId     String
+  session       Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id])
+  score         IdeaScore?
+  canvas        IdeaCanvas?
+  createdAt     DateTime     @default(now())
+}
+
+model IdeaScore {
+  id               String         @id @default(uuid())
+  utilityValue     ValueLevel
+  feasibility      ValueLevel
+  dataAvailability String?
+  systemReadiness  String?
+  timeHorizon      String?
+  matrixQuadrant   MatrixQuadrant
+  ideaId           String         @unique
+  idea             Idea           @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+}
+
+model IdeaCanvas {
+  id               String   @id @default(uuid())
+  problemStatement String
+  solutionSummary  String
+  dataNeeds        String
+  stakeholders     String?
+  firstSteps       String
+  expectedOutcome  String?
+  isAiDraft        Boolean  @default(false)
+  ideaId           String   @unique
+  idea             Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  editedAt         DateTime @default(now())
+}

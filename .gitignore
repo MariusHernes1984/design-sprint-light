@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+*.db
+*.db-journal
+.db-password
+deploy.zip
+deploy.tar.gz
+.claude/
