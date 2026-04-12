@@ -95,21 +95,60 @@ export function ParticipantView() {
     setSessions(prev => prev.map(s => ({ ...s, isActive: s.id === data.sessionId })));
   }, []));
 
+  // ---- Live data sync via Socket.IO ----
+  const refetchChallenges = useCallback(() => {
+    if (id) api.get<ChallengeData[]>(`/workshops/${id}/challenges`).then(setChallenges);
+  }, [id]);
+  const refetchClusters = useCallback(() => {
+    if (id) api.get<ClusterData[]>(`/workshops/${id}/clusters`).then(setClusters);
+  }, [id]);
+  const refetchHkv = useCallback(() => {
+    if (id) api.get<HkvQuestionData[]>(`/workshops/${id}/hkv`).then(setHkvQuestions);
+  }, [id]);
+  const refetchIdeas = useCallback(() => {
+    if (id) api.get<IdeaData[]>(`/workshops/${id}/ideas`).then(setIdeas);
+  }, [id]);
+
+  // Challenges
   useSocketEvent('challenge:added', useCallback((data: ChallengeData) => {
     setChallenges(prev => [...prev, data]);
   }, []));
+  useSocketEvent('challenge:updated', refetchChallenges);
+  useSocketEvent('challenge:clustered', refetchChallenges);
 
+  // Clusters
+  useSocketEvent('cluster:created', refetchClusters);
+  useSocketEvent('cluster:updated', refetchClusters);
+  useSocketEvent('cluster:deleted', refetchClusters);
+
+  // HKV
+  useSocketEvent('hkv:added', refetchHkv);
+  useSocketEvent('hkv:updated', refetchHkv);
+
+  // Ideas & scores
   useSocketEvent('idea:added', useCallback((data: IdeaData) => {
     setIdeas(prev => [...prev, data]);
   }, []));
+  useSocketEvent('score:updated', refetchIdeas);
 
-  useSocketEvent('cluster:updated', useCallback(() => {
-    if (id) api.get<ClusterData[]>(`/workshops/${id}/clusters`).then(setClusters);
-  }, [id]));
+  // Canvas
+  useSocketEvent('canvas:updated', useCallback(() => {
+    // If detail modal is open, refresh the canvas data
+    if (detailIdeaId && id) {
+      api.get(`/workshops/${id}/canvas/${detailIdeaId}`)
+        .then((c: any) => setDetailCanvas(c))
+        .catch(() => {});
+    }
+  }, [detailIdeaId, id]));
 
-  useSocketEvent('score:updated', useCallback(() => {
-    if (id) api.get<IdeaData[]>(`/workshops/${id}/ideas`).then(setIdeas);
-  }, [id]));
+  // AI processing status
+  useSocketEvent('ai:processing', useCallback(() => {
+    // After AI completes, refetch all affected data
+    refetchClusters();
+    refetchHkv();
+    refetchIdeas();
+    refetchChallenges();
+  }, [refetchClusters, refetchHkv, refetchIdeas, refetchChallenges]));
 
   // ---- Idea detail modal ----
   const QUAD_LABELS: Record<string, string> = {
