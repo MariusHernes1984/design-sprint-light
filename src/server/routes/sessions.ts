@@ -86,6 +86,12 @@ export function createSessionRoutes(prisma: PrismaClient, io: SocketServer) {
         data: { currentStep: step },
       });
 
+      // Keep workshop status in sync — mark as ACTIVE when sessions are being used
+      await prisma.workshop.update({
+        where: { id: req.params.workshopId },
+        data: { status: 'ACTIVE' },
+      });
+
       io.to(`workshop:${req.params.workshopId}`).emit('session:stepChanged', {
         sessionId: req.params.sessionId,
         step,
