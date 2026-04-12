@@ -11,10 +11,11 @@ Plattformen digitaliserer hele workshop-flyten: fra hjemmelekse og utfordringsin
 | Frontend | React 19, TypeScript, Vite 6 |
 | Backend | Node.js 20, Express 4 |
 | Database | PostgreSQL 16, Prisma 6 ORM |
-| Sanntid | Socket.IO 4 |
+| Sanntid | Socket.IO 4 (WebSocket) |
 | AI | Azure OpenAI (via OpenAI SDK) |
 | PDF-eksport | jsPDF + jspdf-autotable |
 | Autentisering | JWT + bcryptjs |
+| Hosting | Azure App Service (B2 Linux) |
 
 ## Kom i gang
 
@@ -56,6 +57,8 @@ AZURE_OPENAI_API_VERSION="2024-10-21"
 PORT=3001
 ```
 
+> **Viktig:** `JWT_SECRET` er paakrevd. Appen vil ikke starte uten denne variabelen.
+
 ### 4. Kjor migrasjoner
 
 ```bash
@@ -79,7 +82,7 @@ npm start
 
 ## Deployment til Azure
 
-Appen er satt opp for Azure App Service (Linux, Node.js 20):
+Appen er satt opp for Azure App Service (Linux, Node.js 20). Serveren bundles til en enkelt fil med esbuild (alle avhengigheter unntatt Prisma inkludert).
 
 ```bash
 # Bygg
@@ -91,6 +94,14 @@ python create_zip.py
 # Deploy
 az webapp deploy --resource-group <rg> --name <app-name> --src-path deploy.zip --type zip
 ```
+
+Pase at disse App Settings er satt i Azure:
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_DEPLOYMENT`
+- `AZURE_OPENAI_API_VERSION`
 
 ## NPM-scripts
 
@@ -222,7 +233,32 @@ For a vise workshopen pa storskjerm/projektor for deltakerne:
 
 1. Ga til forsiden og klikk **Presentasjonsvisning**.
 2. Skriv inn 6-tegns **deltakerkode** (vises i workshop-kortene og i sidepanelet).
-3. Visningen folger workshopen i sanntid - fasilitator styrer alt fra sitt dashboard.
+3. Visningen folger workshopen i sanntid via WebSocket — alle endringer fasilitator gjor vises umiddelbart uten refresh.
+
+Presentasjonsvisningen viser sanntidsoppdateringer for:
+- Steg-endringer og okt-bytte
+- Utfordringer, klynger og klyngetilordning
+- HKV-sporsmaal
+- Ideer og scoring
+- Prioriteringsmatrise
+- Idecanvas
+- AI-prosesseringsresultater
+
+---
+
+## Arkitektur
+
+### Sanntidskommunikasjon
+
+Appen bruker Socket.IO for sanntidsoppdateringer mellom fasilitator-dashboard og presentasjonsvisning. Alle dataendringer sendes som WebSocket-events, slik at presentasjonsvisningen alltid viser oppdatert data uten manuell refresh.
+
+### Session-scoped arkitektur
+
+Hver workshop kan ha flere **okter** (f.eks. "Administrasjon", "Drift", "Vei og trafikk"). Hver okt gar uavhengig gjennom alle 9 steg. Data (utfordringer, klynger, HKV, ideer) er scopet til sin okt, men kan ses samlet i oppsummeringsvisningen.
+
+### Feilhandtering
+
+Alle server-ruter er pakket i try-catch for a forhindre at uhendterte feil krasjer Node.js-prosessen. Feil logges til konsoll og returnerer en trygg feilmelding til klienten.
 
 ---
 
