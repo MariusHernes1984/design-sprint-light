@@ -25,7 +25,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
     req.user = payload;
     next();
   } catch {
-    res.status(403).json({ error: 'Ugyldig eller utløpt token' });
+    res.status(403).json({ error: 'Ugyldig eller utlopt token' });
   }
 }
 
@@ -37,12 +37,31 @@ export function requireFacilitator(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (req.user?.role !== 'facilitator' || req.user?.userRole !== 'ADMIN') {
+    res.status(403).json({ error: 'Kun administratorer har tilgang' });
+    return;
+  }
+  next();
+}
+
 export function requireWorkshopAccess(req: Request, res: Response, next: NextFunction): void {
   const workshopId = req.params.workshopId || req.params.id;
+
+  // Participants can only access their own workshop
   if (req.user?.role === 'participant' && req.user.workshopId !== workshopId) {
     res.status(403).json({ error: 'Ingen tilgang til denne workshopen' });
     return;
   }
+
+  // USER-role facilitators can only access their assigned workshop
+  if (req.user?.role === 'facilitator' && req.user?.userRole === 'USER') {
+    if (req.user.assignedWorkshopId !== workshopId) {
+      res.status(403).json({ error: 'Du har ikke tilgang til denne workshopen' });
+      return;
+    }
+  }
+
   next();
 }
 

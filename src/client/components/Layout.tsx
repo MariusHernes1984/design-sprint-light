@@ -8,11 +8,12 @@ interface LayoutProps {
 export function DashboardLayout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
 
   const navItems = [
     { path: '/dashboard', icon: '\u2302', label: 'Oversikt' },
     { path: '/archive', icon: '\u2610', label: 'Arkiv' },
+    ...(isAdmin ? [{ path: '/users', icon: '\u263A', label: 'Brukere' }] : []),
   ];
 
   const initials = user?.name

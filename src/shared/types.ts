@@ -182,10 +182,14 @@ export interface ClientToServerEvents {
 }
 
 // Auth
+export type UserRole = 'ADMIN' | 'USER';
+
 export interface AuthPayload {
   id: string;
   role: 'facilitator' | 'participant';
+  userRole?: UserRole;
   workshopId?: string;
+  assignedWorkshopId?: string;
 }
 
 export interface LoginRequest {

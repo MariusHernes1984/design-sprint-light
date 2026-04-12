@@ -45,13 +45,21 @@ enum MatrixQuadrant {
   PARKER
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
 model Facilitator {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  name         String
-  passwordHash String
-  workshops    Workshop[]
-  createdAt    DateTime   @default(now())
+  id                  String     @id @default(uuid())
+  email               String     @unique
+  name                String
+  passwordHash        String
+  role                UserRole   @default(USER)
+  assignedWorkshopId  String?
+  assignedWorkshop    Workshop?  @relation("assignedUsers", fields: [assignedWorkshopId], references: [id])
+  workshops           Workshop[] @relation("ownedWorkshops")
+  createdAt           DateTime   @default(now())
 }
 
 model Workshop {
@@ -63,7 +71,8 @@ model Workshop {
   status        WorkshopStatus @default(DRAFT)
   currentStep   WorkshopStep   @default(PREWORK)
   facilitatorId String
-  facilitator   Facilitator    @relation(fields: [facilitatorId], references: [id])
+  facilitator   Facilitator    @relation("ownedWorkshops", fields: [facilitatorId], references: [id])
+  assignedUsers Facilitator[]  @relation("assignedUsers")
   sessions      Session[]
   participants  Participant[]
   challenges    Challenge[]

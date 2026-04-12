@@ -6,6 +6,9 @@ interface User {
   name: string;
   email?: string;
   role: 'facilitator' | 'participant';
+  userRole?: 'ADMIN' | 'USER';
+  assignedWorkshopId?: string | null;
+  assignedWorkshop?: { id: string; title: string; currentStep: string } | null;
   workshop?: { id: string; title: string; currentStep: string };
 }
 
@@ -13,9 +16,10 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
   joinWorkshop: (joinCode: string, name: string) => Promise<{ workshopId: string }>;
   logout: () => void;
+  isAdmin: boolean;
+  isUser: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -42,12 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
-    const result = await api.post<{ token: string; user: User }>('/auth/register', { email, password, name });
-    setToken(result.token);
-    setUser(result.user);
-  }, []);
-
   const joinWorkshop = useCallback(async (joinCode: string, name: string) => {
     const result = await api.post<{ token: string; user: User; workshop: { id: string } }>('/auth/join', { joinCode, name });
     setToken(result.token);
@@ -60,8 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const isAdmin = user?.role === 'facilitator' && user?.userRole === 'ADMIN';
+  const isUser = user?.role === 'facilitator' && user?.userRole === 'USER';
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, joinWorkshop, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, joinWorkshop, logout, isAdmin, isUser }}>
       {children}
     </AuthContext.Provider>
   );
