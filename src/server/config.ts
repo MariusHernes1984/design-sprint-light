@@ -3,7 +3,7 @@ dotenv.config();
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+  jwtSecret: process.env.JWT_SECRET ?? (() => { throw new Error('JWT_SECRET env variable is required'); })(),
   azureOpenAI: {
     endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
     apiKey: process.env.AZURE_OPENAI_API_KEY || '',
