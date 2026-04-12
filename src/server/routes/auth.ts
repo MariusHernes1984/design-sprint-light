@@ -56,8 +56,8 @@ export function createAuthRoutes(prisma: PrismaClient) {
       return;
     }
 
-    if (workshop.status === 'ARCHIVED' || workshop.status === 'COMPLETED') {
-      res.status(400).json({ error: 'Denne workshopen er avsluttet.' });
+    if (workshop.status === 'ARCHIVED') {
+      res.status(400).json({ error: 'Denne workshopen er arkivert.' });
       return;
     }
 
