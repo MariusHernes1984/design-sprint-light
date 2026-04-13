@@ -9,11 +9,12 @@ import type { WorkshopStep } from '../../shared/types.js';
 export function createWorkshopRoutes(prisma: PrismaClient, io: SocketServer) {
   const router = Router();
 
-  // List facilitator's workshops
+  // List workshops (ADMIN sees all, USER sees only assigned)
   router.get('/', authenticateToken, requireFacilitator, async (req, res) => {
     try {
+      const where = req.user!.userRole === 'ADMIN' ? {} : { facilitatorId: req.user!.id };
       const workshops = await prisma.workshop.findMany({
-        where: { facilitatorId: req.user!.id },
+        where,
         include: {
           _count: { select: { participants: true, challenges: true } },
         },
