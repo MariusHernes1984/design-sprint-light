@@ -716,7 +716,7 @@ export function WorkshopManage() {
                 <div className="stat-card"><div className="stat-label">AI-genererte</div><div className="stat-value">{sessionIdeas.filter(i => i.isAiGenerated).length}</div></div>
               </div>
               {sessionClusters.map(cl => {
-                const clusterHkv = sessionApprovedHkv.filter(h => h.clusterId === cl.id);
+                const clusterHkv = sessionHkv.filter(h => h.clusterId === cl.id);
                 const clusterIdeas = sessionIdeas.filter(i => i.clusterId === cl.id);
                 return (
                   <div key={cl.id} className="cluster-card">
