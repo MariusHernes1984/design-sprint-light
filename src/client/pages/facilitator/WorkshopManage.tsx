@@ -1156,21 +1156,21 @@ export function WorkshopManage() {
               <h2 style={{ fontSize: '1.125rem' }}>Post-it-lapper funnet ({postItTexts.length})</h2>
               <button className="modal-close" onClick={() => setPostItTexts([])}>&times;</button>
             </div>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-              Velg klynge og importer {postItContext === 'hkv' ? 'som HKV-sporsmaal' : 'som ideer'}:
-            </p>
-            {!postItClusterId && (
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <select className="form-input" value={postItClusterId} onChange={e => setPostItClusterId(e.target.value)}>
-                  <option value="">-- Velg klynge --</option>
-                  {sessionClusters.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-                </select>
-              </div>
-            )}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.75rem' }}>Klynge</label>
+              <select className="form-input" value={postItClusterId} onChange={e => setPostItClusterId(e.target.value)}>
+                <option value="">-- Velg klynge --</option>
+                {sessionClusters.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+              </select>
+            </div>
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {postItTexts.map((text, i) => (
                 <div key={i} className="card" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input className="form-input" value={text} onChange={e => setPostItTexts(prev => prev.map((t, idx) => idx === i ? e.target.value : t))} style={{ flex: 1, fontSize: '0.875rem' }} />
+                  <button className="btn btn-success btn-sm" style={{ flexShrink: 0 }} disabled={!postItClusterId || !text.trim()} onClick={async () => {
+                    if (postItContext === 'hkv') { await importPostItAsHkv(text, postItClusterId); }
+                    else { await importPostItAsIdea(text, postItClusterId); }
+                  }}>Legg til</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setPostItTexts(prev => prev.filter((_, idx) => idx !== i))} style={{ color: '#dc2626', flexShrink: 0 }}>&times;</button>
                 </div>
               ))}
@@ -1178,7 +1178,7 @@ export function WorkshopManage() {
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
               <button className="btn btn-ghost" onClick={() => setPostItTexts([])}>Avbryt</button>
               <button className="btn btn-primary" onClick={importAllPostIts} disabled={!postItClusterId || !!aiLoading}>
-                {aiLoading === 'import' ? 'Importerer...' : `Importer alle (${postItTexts.length})`}
+                {aiLoading === 'import' ? 'Importerer...' : `Legg til alle (${postItTexts.length})`}
               </button>
             </div>
           </div>
