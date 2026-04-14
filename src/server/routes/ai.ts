@@ -149,5 +149,28 @@ export function createAiRoutes(prisma: PrismaClient, io: SocketServer) {
     }
   });
 
+  // AI read post-it notes from image
+  router.post('/read-postits', authenticateToken, requireFacilitator, async (req, res) => {
+    const { workshopId } = req.params;
+    const { image, context } = req.body as { image: string; context: 'hkv' | 'ideas' };
+
+    if (!image) {
+      res.status(400).json({ error: 'Bilde mangler' });
+      return;
+    }
+
+    io.to(`workshop:${workshopId}`).emit('ai:processing', { type: 'postit-scan', status: 'started' });
+
+    try {
+      const result = await aiService.readPostItsFromImage(image, context || 'ideas');
+      io.to(`workshop:${workshopId}`).emit('ai:processing', { type: 'postit-scan', status: 'completed' });
+      res.json({ texts: result.texts });
+    } catch (error) {
+      console.error('AI post-it reading error:', error);
+      io.to(`workshop:${workshopId}`).emit('ai:processing', { type: 'postit-scan', status: 'completed' });
+      res.status(500).json({ error: 'Kunne ikke lese post-it-lapper fra bildet' });
+    }
+  });
+
   return router;
 }

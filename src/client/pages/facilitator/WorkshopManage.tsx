@@ -59,6 +59,10 @@ export function WorkshopManage() {
   const [editHkvConstraint, setEditHkvConstraint] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [postItTexts, setPostItTexts] = useState<string[]>([]);
+  const [postItContext, setPostItContext] = useState<'hkv' | 'ideas'>('hkv');
+  const [postItClusterId, setPostItClusterId] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const challengeInputRef = useRef<HTMLInputElement>(null);
   const ideaTitleRef = useRef<HTMLInputElement>(null);
@@ -267,6 +271,103 @@ export function WorkshopManage() {
     await api.delete(`/workshops/${id}/hkv/${hkvId}`);
     setHkvQuestions(prev => prev.filter(q => q.id !== hkvId));
     flash('HKV slettet');
+  };
+
+  // ---- Post-it scanning ----
+  const openPostItScan = (context: 'hkv' | 'ideas', clusterId?: string) => {
+    setPostItContext(context);
+    setPostItClusterId(clusterId || '');
+    setPostItTexts([]);
+    fileInputRef.current?.click();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    e.target.value = '';
+
+    setAiLoading('postit-scan');
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const result = await api.post<{ texts: string[] }>(`/workshops/${id}/ai/read-postits`, {
+        image: base64,
+        context: postItContext,
+      });
+
+      if (result.texts.length === 0) {
+        flash('Ingen post-it-lapper funnet i bildet');
+        return;
+      }
+
+      setPostItTexts(result.texts);
+    } catch (err) {
+      console.error('Post-it scan error:', err);
+      flash('Feil ved lesing av bilde');
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const importPostItAsHkv = async (text: string, clusterId: string) => {
+    if (!selectedSessionId) return;
+    const fullText = `Hvordan kan vi ${text}?`;
+    await api.post(`/workshops/${id}/hkv`, {
+      problem: text, benefit: '', constraint: '',
+      fullText, clusterId, isAiGenerated: false, sessionId: selectedSessionId,
+    });
+    const hk = await api.get<HkvQuestionData[]>(`/workshops/${id}/hkv`);
+    setHkvQuestions(hk);
+    setPostItTexts(prev => prev.filter(t => t !== text));
+    flash('HKV lagt til!');
+  };
+
+  const importPostItAsIdea = async (text: string, clusterId: string) => {
+    if (!selectedSessionId) return;
+    await api.post(`/workshops/${id}/ideas`, {
+      title: text, clusterId, sessionId: selectedSessionId, isAiGenerated: false,
+    });
+    const updatedIdeas = await api.get<IdeaData[]>(`/workshops/${id}/ideas`);
+    setIdeas(updatedIdeas);
+    setPostItTexts(prev => prev.filter(t => t !== text));
+    flash('Ide lagt til!');
+  };
+
+  const importAllPostIts = async () => {
+    if (!selectedSessionId || !postItClusterId) return;
+    setAiLoading('import');
+    try {
+      for (const text of postItTexts) {
+        if (postItContext === 'hkv') {
+          await api.post(`/workshops/${id}/hkv`, {
+            problem: text, benefit: '', constraint: '',
+            fullText: `Hvordan kan vi ${text}?`, clusterId: postItClusterId,
+            isAiGenerated: false, sessionId: selectedSessionId,
+          });
+        } else {
+          await api.post(`/workshops/${id}/ideas`, {
+            title: text, clusterId: postItClusterId,
+            sessionId: selectedSessionId, isAiGenerated: false,
+          });
+        }
+      }
+      if (postItContext === 'hkv') {
+        const hk = await api.get<HkvQuestionData[]>(`/workshops/${id}/hkv`);
+        setHkvQuestions(hk);
+      } else {
+        const updatedIdeas = await api.get<IdeaData[]>(`/workshops/${id}/ideas`);
+        setIdeas(updatedIdeas);
+      }
+      setPostItTexts([]);
+      flash(`${postItTexts.length} oppforinger importert!`);
+    } finally { setAiLoading(null); }
   };
 
   // ---- Ideation AI ----
@@ -617,7 +718,10 @@ export function WorkshopManage() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div className="section-title" style={{ marginBottom: 0 }}>HKV-sporsmaal <span className="count">{sessionHkv.length}</span></div>
-                <button className="btn btn-secondary btn-sm" onClick={() => setShowNewHkv(!showNewHkv)}>+ Skriv eget HKV</button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => openPostItScan('hkv')} disabled={!!aiLoading}>{'\ud83d\udcf7'} Skann post-its</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setShowNewHkv(!showNewHkv)}>+ Skriv eget HKV</button>
+                </div>
               </div>
               {showNewHkv && (
                 <form onSubmit={createHkv} className="card" style={{ marginBottom: '1rem' }}>
@@ -722,7 +826,10 @@ export function WorkshopManage() {
                   <div key={cl.id} className="cluster-card">
                     <div className="cluster-header">
                       <h3 className="cluster-name">{cl.name}</h3>
-                      <button className="btn btn-ai btn-sm" onClick={() => aiSuggestIdeas(cl.id)} disabled={!!aiLoading}>{'\u2728'} AI-ideer</button>
+                      <div style={{ display: 'flex', gap: '0.375rem' }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openPostItScan('ideas', cl.id)} disabled={!!aiLoading}>{'\ud83d\udcf7'}</button>
+                        <button className="btn btn-ai btn-sm" onClick={() => aiSuggestIdeas(cl.id)} disabled={!!aiLoading}>{'\u2728'} AI-ideer</button>
+                      </div>
                     </div>
                     {clusterHkv.length > 0 && (
                       <div style={{ marginBottom: '0.75rem', padding: '0.625rem', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--color-accent)' }}>
@@ -1035,6 +1142,45 @@ export function WorkshopManage() {
                 <button className="btn btn-secondary btn-sm" disabled={detailCurrentIdx >= detailPrioritizedIdeas.length - 1} onClick={() => navigateDetail(1)}>Neste &rarr;</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Hidden file input for post-it scanning */}
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleImageUpload} />
+
+      {/* Post-it scan results modal */}
+      {postItTexts.length > 0 && (
+        <div className="modal-overlay" onClick={() => setPostItTexts([])}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.125rem' }}>Post-it-lapper funnet ({postItTexts.length})</h2>
+              <button className="modal-close" onClick={() => setPostItTexts([])}>&times;</button>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+              Velg klynge og importer {postItContext === 'hkv' ? 'som HKV-sporsmaal' : 'som ideer'}:
+            </p>
+            {!postItClusterId && (
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <select className="form-input" value={postItClusterId} onChange={e => setPostItClusterId(e.target.value)}>
+                  <option value="">-- Velg klynge --</option>
+                  {sessionClusters.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {postItTexts.map((text, i) => (
+                <div key={i} className="card" style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                  <p style={{ flex: 1, fontSize: '0.875rem' }}>{text}</p>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setPostItTexts(prev => prev.filter((_, idx) => idx !== i))} style={{ color: '#dc2626', flexShrink: 0 }}>&times;</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button className="btn btn-ghost" onClick={() => setPostItTexts([])}>Avbryt</button>
+              <button className="btn btn-primary" onClick={importAllPostIts} disabled={!postItClusterId || !!aiLoading}>
+                {aiLoading === 'import' ? 'Importerer...' : `Importer alle (${postItTexts.length})`}
+              </button>
+            </div>
           </div>
         </div>
       )}

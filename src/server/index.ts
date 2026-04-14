@@ -26,7 +26,7 @@ const io = new SocketServer(server, {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Routes
 app.use('/api/auth', createAuthRoutes(prisma));

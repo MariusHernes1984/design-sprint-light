@@ -28,6 +28,46 @@ async function chatCompletion(systemPrompt: string, userPrompt: string): Promise
   return response.choices[0]?.message?.content || '{}';
 }
 
+// ---- Vision: Read post-it notes from image ----
+export interface PostItReading {
+  texts: string[];
+}
+
+export async function readPostItsFromImage(
+  base64Image: string,
+  context: 'hkv' | 'ideas',
+): Promise<PostItReading> {
+  const ai = getClient();
+  const contextPrompt = context === 'hkv'
+    ? 'Hver lapp inneholder et HKV-spørsmål eller en problemstilling. Skriv ut fullstendig tekst fra hver lapp.'
+    : 'Hver lapp inneholder en idé eller et forslag. Skriv ut fullstendig tekst fra hver lapp.';
+
+  const response = await ai.chat.completions.create({
+    model: config.azureOpenAI.deployment,
+    messages: [
+      {
+        role: 'system',
+        content: `Du leser post-it-lapper fra et bilde. ${contextPrompt}
+Returner som JSON: { "postits": ["tekst fra lapp 1", "tekst fra lapp 2", ...] }
+Behold originalteksten så nøyaktig som mulig. Fiks åpenbare skrivefeil. Ignorer tomme lapper.`,
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Les alle post-it-lapper i dette bildet:' },
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
+        ],
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+
+  const result = response.choices[0]?.message?.content || '{}';
+  const parsed = JSON.parse(result);
+  return { texts: parsed.postits || [] };
+}
+
 export interface ClusterSuggestion {
   name: string;
   summary: string;
