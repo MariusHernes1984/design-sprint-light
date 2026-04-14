@@ -170,8 +170,8 @@ export function ParticipantView() {
   const closeIdeaDetail = () => { setDetailIdeaId(null); setDetailCanvas(null); };
 
   const detailIdea = ideas.find(i => i.id === detailIdeaId);
-  const detailHkv = detailIdea ? hkvQuestions.find(h => h.id === detailIdea.hkvQuestionId) : null;
-  const detailCluster = detailHkv ? clusters.find(c => c.id === detailHkv.clusterId) : null;
+  const detailHkv = detailIdea?.hkvQuestionId ? hkvQuestions.find(h => h.id === detailIdea.hkvQuestionId) : null;
+  const detailCluster = detailIdea?.clusterId ? clusters.find(c => c.id === detailIdea.clusterId) : (detailHkv ? clusters.find(c => c.id === detailHkv.clusterId) : null);
   const viewPrioritizedIdeas = showSummary ? allPrioritizedIdeas : sessionPrioritizedIdeas;
   const detailCurrentIdx = detailIdea ? viewPrioritizedIdeas.findIndex(i => i.id === detailIdea.id) : -1;
 
@@ -325,7 +325,7 @@ export function ParticipantView() {
               <>
                 <div className="section-title">Alle prioriterte ideer <span style={{ fontSize: '0.8125rem', fontWeight: 400, color: 'var(--color-text-muted)' }}>&mdash; klikk for detaljer</span></div>
                 {allPrioritizedIdeas.map(idea => {
-                  const hkv = hkvQuestions.find(h => h.id === idea.hkvQuestionId);
+                  const cl = idea.clusterId ? clusters.find(c => c.id === idea.clusterId) : null;
                   return (
                     <div key={idea.id} className="card" style={{ marginBottom: '0.75rem', cursor: 'pointer', transition: 'box-shadow 0.15s' }} onClick={() => openIdeaDetail(idea.id)}
                       onMouseEnter={e => (e.currentTarget.style.boxShadow = 'var(--shadow-md)')}
@@ -341,7 +341,7 @@ export function ParticipantView() {
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                         <span className="badge badge-high">Nytte: {idea.score?.utilityValue}</span>
                         <span className="badge badge-high">Gjennomf.: {idea.score?.feasibility}</span>
-                        {hkv && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>HKV: {hkv.fullText.slice(0, 50)}...</span>}
+                        {cl && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>Klynge: {cl.name}</span>}
                       </div>
                     </div>
                   );
@@ -472,15 +472,21 @@ export function ParticipantView() {
 
                 {sessionIdeas.length > 0 ? (
                   <>
-                    {sessionApprovedHkv.map(h => {
-                      const hkvIdeas = sessionIdeas.filter(i => i.hkvQuestionId === h.id);
-                      if (hkvIdeas.length === 0) return null;
+                    {sessionClusters.map(cl => {
+                      const clusterIdeas = sessionIdeas.filter(i => i.clusterId === cl.id);
+                      if (clusterIdeas.length === 0) return null;
+                      const clusterHkv = sessionApprovedHkv.filter(h => h.clusterId === cl.id);
                       return (
-                        <div key={h.id} style={{ marginBottom: '1.5rem' }}>
-                          <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.5rem' }}>
-                            {h.fullText}
+                        <div key={cl.id} style={{ marginBottom: '1.5rem' }}>
+                          <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.25rem' }}>
+                            {cl.name}
                           </p>
-                          {hkvIdeas.map(idea => (
+                          {clusterHkv.length > 0 && (
+                            <div style={{ marginBottom: '0.5rem', paddingLeft: '0.75rem', borderLeft: '2px solid var(--color-accent)', opacity: 0.7 }}>
+                              {clusterHkv.map(h => <p key={h.id} style={{ fontSize: '0.75rem', fontStyle: 'italic', marginBottom: '0.125rem' }}>{h.fullText}</p>)}
+                            </div>
+                          )}
+                          {clusterIdeas.map(idea => (
                             <div key={idea.id} className="idea-card">
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
@@ -619,7 +625,7 @@ export function ParticipantView() {
 
                 <div className="section-title">Prioriterte ideer <span style={{ fontSize: '0.8125rem', fontWeight: 400, color: 'var(--color-text-muted)' }}>&mdash; klikk for detaljer</span></div>
                 {sessionPrioritizedIdeas.map(idea => {
-                  const hkv = hkvQuestions.find(h => h.id === idea.hkvQuestionId);
+                  const cl = idea.clusterId ? clusters.find(c => c.id === idea.clusterId) : null;
                   return (
                     <div key={idea.id} className="card" style={{ marginBottom: '0.75rem', cursor: 'pointer', transition: 'box-shadow 0.15s' }} onClick={() => openIdeaDetail(idea.id)}
                       onMouseEnter={e => (e.currentTarget.style.boxShadow = 'var(--shadow-md)')}
@@ -635,7 +641,7 @@ export function ParticipantView() {
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                         {idea.score && <span className="badge badge-high">Nytte: {idea.score.utilityValue}</span>}
                         {idea.score && <span className="badge badge-high">Gjennomf.: {idea.score.feasibility}</span>}
-                        {hkv && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>HKV: {hkv.fullText.slice(0, 50)}...</span>}
+                        {cl && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>Klynge: {cl.name}</span>}
                       </div>
                     </div>
                   );

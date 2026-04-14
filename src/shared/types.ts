@@ -129,7 +129,8 @@ export interface IdeaData {
   title: string;
   description: string | null;
   isAiGenerated: boolean;
-  hkvQuestionId: string;
+  hkvQuestionId: string | null;
+  clusterId: string | null;
   sessionId: string;
   participantId?: string | null;
   participantName: string | null;

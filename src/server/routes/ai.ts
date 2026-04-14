@@ -67,22 +67,29 @@ export function createAiRoutes(prisma: PrismaClient, io: SocketServer) {
     }
   });
 
-  // AI suggest ideas
+  // AI suggest ideas (cluster-based, uses all approved HKV from cluster as context)
   router.post('/ideate', authenticateToken, requireFacilitator, async (req, res) => {
     const { workshopId } = req.params;
-    const { hkvQuestionId } = req.body;
+    const { clusterId } = req.body;
 
     io.to(`workshop:${workshopId}`).emit('ai:processing', { type: 'ideation', status: 'started' });
 
     try {
-      const hkv = await prisma.hkvQuestion.findUnique({ where: { id: hkvQuestionId } });
-      if (!hkv) {
-        res.status(404).json({ error: 'HKV-spørsmål ikke funnet' });
+      const cluster = await prisma.cluster.findUnique({
+        where: { id: clusterId },
+        include: { hkvQuestions: { where: { isApproved: true } } },
+      });
+      if (!cluster) {
+        res.status(404).json({ error: 'Klynge ikke funnet' });
         return;
       }
 
+      const hkvContext = cluster.hkvQuestions.map(h => h.fullText).join('\n');
       const workshop = await prisma.workshop.findUnique({ where: { id: workshopId } });
-      const suggestions = await aiService.suggestIdeas(hkv.fullText, workshop?.customerName || undefined);
+      const suggestions = await aiService.suggestIdeas(
+        hkvContext || `Klynge: ${cluster.name}`,
+        workshop?.customerName || undefined,
+      );
 
       io.to(`workshop:${workshopId}`).emit('ai:processing', { type: 'ideation', status: 'completed' });
       res.json({ suggestions });
@@ -108,7 +115,7 @@ export function createAiRoutes(prisma: PrismaClient, io: SocketServer) {
 
       const assessment = await aiService.assessFeasibility(
         `${idea.title}: ${idea.description || ''}`,
-        idea.hkvQuestion.fullText,
+        idea.hkvQuestion?.fullText || '',
       );
       res.json({ assessment });
     } catch (error) {
@@ -133,7 +140,7 @@ export function createAiRoutes(prisma: PrismaClient, io: SocketServer) {
       const draft = await aiService.generateCanvasDraft(
         idea.title,
         idea.description || '',
-        idea.hkvQuestion.fullText,
+        idea.hkvQuestion?.fullText || '',
       );
       res.json({ canvas: draft });
     } catch (error) {

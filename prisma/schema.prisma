@@ -135,6 +135,7 @@ model Cluster {
   session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   challenges   Challenge[]
   hkvQuestions HkvQuestion[]
+  ideas        Idea[]
 }
 
 model HkvQuestion {
@@ -160,8 +161,10 @@ model Idea {
   title         String
   description   String?
   isAiGenerated Boolean      @default(false)
-  hkvQuestionId String
-  hkvQuestion   HkvQuestion  @relation(fields: [hkvQuestionId], references: [id], onDelete: Cascade)
+  hkvQuestionId String?
+  hkvQuestion   HkvQuestion? @relation(fields: [hkvQuestionId], references: [id], onDelete: SetNull)
+  clusterId     String?
+  cluster       Cluster?     @relation(fields: [clusterId], references: [id], onDelete: SetNull)
   workshopId    String
   workshop      Workshop     @relation(fields: [workshopId], references: [id], onDelete: Cascade)
   sessionId     String

@@ -161,12 +161,13 @@ export function WorkshopManage() {
   };
 
   // ---- Idea ----
+  const [newIdeaClusterId, setNewIdeaClusterId] = useState('');
   const submitIdea = async () => {
-    if (!newIdeaTitle.trim() || !newIdeaHkvId || !selectedSessionId) return;
+    if (!newIdeaTitle.trim() || !newIdeaClusterId || !selectedSessionId) return;
     await api.post(`/workshops/${id}/ideas`, {
       title: newIdeaTitle.trim(),
       description: newIdeaDesc.trim() || null,
-      hkvQuestionId: newIdeaHkvId,
+      clusterId: newIdeaClusterId,
       sessionId: selectedSessionId,
     });
     setNewIdeaTitle('');
@@ -269,13 +270,13 @@ export function WorkshopManage() {
   };
 
   // ---- Ideation AI ----
-  const aiSuggestIdeas = async (hkvQuestionId: string) => {
+  const aiSuggestIdeas = async (clusterId: string) => {
     if (!selectedSessionId) return;
     setAiLoading('ideation');
     try {
-      const result = await api.post<{ suggestions: { title: string; description: string }[] }>(`/workshops/${id}/ai/ideate`, { hkvQuestionId });
+      const result = await api.post<{ suggestions: { title: string; description: string }[] }>(`/workshops/${id}/ai/ideate`, { clusterId });
       for (const s of result.suggestions) {
-        await api.post(`/workshops/${id}/ideas`, { title: s.title, description: s.description, hkvQuestionId, isAiGenerated: true, sessionId: selectedSessionId });
+        await api.post(`/workshops/${id}/ideas`, { title: s.title, description: s.description, clusterId, isAiGenerated: true, sessionId: selectedSessionId });
       }
       const updatedIdeas = await api.get<IdeaData[]>(`/workshops/${id}/ideas`);
       setIdeas(updatedIdeas);
@@ -343,8 +344,8 @@ export function WorkshopManage() {
   };
 
   const detailIdea = ideas.find(i => i.id === detailIdeaId);
-  const detailHkv = detailIdea ? hkvQuestions.find(h => h.id === detailIdea.hkvQuestionId) : null;
-  const detailCluster = detailHkv ? clusters.find(c => c.id === detailHkv.clusterId) : null;
+  const detailHkv = detailIdea?.hkvQuestionId ? hkvQuestions.find(h => h.id === detailIdea.hkvQuestionId) : null;
+  const detailCluster = detailIdea?.clusterId ? clusters.find(c => c.id === detailIdea.clusterId) : (detailHkv ? clusters.find(c => c.id === detailHkv.clusterId) : null);
   const detailPrioritizedIdeas = showSummary
     ? ideas.filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA')
     : sessionIdeas.filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA');
@@ -714,44 +715,47 @@ export function WorkshopManage() {
                 <div className="stat-card"><div className="stat-label">Ideer</div><div className="stat-value">{sessionIdeas.length}</div></div>
                 <div className="stat-card"><div className="stat-label">AI-genererte</div><div className="stat-value">{sessionIdeas.filter(i => i.isAiGenerated).length}</div></div>
               </div>
-              <div className="card" style={{ padding: '1rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--color-accent)' }}>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <select className="form-input" value={newIdeaHkvId} onChange={e => setNewIdeaHkvId(e.target.value)} style={{ flex: '0 0 auto', maxWidth: '50%', fontSize: '0.8125rem' }}>
-                    <option value="">Velg HKV...</option>
-                    {sessionApprovedHkv.map(h => <option key={h.id} value={h.id}>{h.fullText?.slice(0, 60)}...</option>)}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <input ref={ideaTitleRef} className="form-input" value={newIdeaTitle} onChange={e => setNewIdeaTitle(e.target.value)} onKeyDown={handleIdeaKeyDown} placeholder="Tittel pa ide + Enter..." style={{ flex: 1 }} />
-                  <button className="btn btn-primary" onClick={submitIdea} disabled={!newIdeaTitle.trim() || !newIdeaHkvId}>+</button>
-                </div>
-                <input className="form-input" value={newIdeaDesc} onChange={e => setNewIdeaDesc(e.target.value)} placeholder="Beskrivelse (valgfritt)" style={{ marginTop: '0.5rem', fontSize: '0.8125rem' }} />
-              </div>
-              {sessionApprovedHkv.map(h => (
-                <div key={h.id} className="cluster-card">
-                  <div className="cluster-header">
-                    <p style={{ fontWeight: 500, fontSize: '0.875rem', flex: 1 }}>{h.fullText}</p>
-                    <button className="btn btn-ai btn-sm" onClick={() => aiSuggestIdeas(h.id)} disabled={!!aiLoading} style={{ marginLeft: '1rem', flexShrink: 0 }}>{'\u2728'} AI-ideer</button>
-                  </div>
-                  {sessionIdeas.filter(i => i.hkvQuestionId === h.id).length === 0 ? (
-                    <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Ingen ideer enna.</p>
-                  ) : (
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                      {sessionIdeas.filter(i => i.hkvQuestionId === h.id).map(idea => (
-                        <div key={idea.id} className="idea-card">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ flex: 1 }}><div className="idea-title">{idea.title}</div>{idea.description && <p className="idea-description">{idea.description}</p>}</div>
-                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexShrink: 0 }}>
-                              {idea.isAiGenerated && <span className="badge badge-ai">{'\u2728'} AI</span>}
-                              <button className="btn btn-ghost btn-sm" onClick={() => deleteIdea(idea.id)} style={{ padding: '0.125rem 0.375rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>&times;</button>
+              {sessionClusters.map(cl => {
+                const clusterHkv = sessionApprovedHkv.filter(h => h.clusterId === cl.id);
+                const clusterIdeas = sessionIdeas.filter(i => i.clusterId === cl.id);
+                return (
+                  <div key={cl.id} className="cluster-card">
+                    <div className="cluster-header">
+                      <h3 className="cluster-name">{cl.name}</h3>
+                      <button className="btn btn-ai btn-sm" onClick={() => aiSuggestIdeas(cl.id)} disabled={!!aiLoading}>{'\u2728'} AI-ideer</button>
+                    </div>
+                    {clusterHkv.length > 0 && (
+                      <div style={{ marginBottom: '0.75rem', padding: '0.625rem', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--color-accent)' }}>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '0.375rem' }}>HKV-inspirasjon</div>
+                        {clusterHkv.map(h => (
+                          <p key={h.id} style={{ fontSize: '0.8125rem', fontStyle: 'italic', color: 'var(--color-text-secondary)', marginBottom: '0.25rem', lineHeight: 1.4 }}>{h.fullText}</p>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <input ref={newIdeaClusterId === cl.id ? ideaTitleRef : undefined} className="form-input" value={newIdeaClusterId === cl.id ? newIdeaTitle : ''} onChange={e => { setNewIdeaClusterId(cl.id); setNewIdeaTitle(e.target.value); }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (newIdeaClusterId === cl.id && newIdeaTitle.trim()) submitIdea(); } }} placeholder="Skriv ide + Enter..." style={{ flex: 1 }} />
+                      <button className="btn btn-primary btn-sm" onClick={() => { setNewIdeaClusterId(cl.id); submitIdea(); }} disabled={newIdeaClusterId !== cl.id || !newIdeaTitle.trim()}>+</button>
+                    </div>
+                    {clusterIdeas.length === 0 ? (
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Ingen ideer enna.</p>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '0.5rem' }}>
+                        {clusterIdeas.map(idea => (
+                          <div key={idea.id} className="idea-card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}><div className="idea-title">{idea.title}</div>{idea.description && <p className="idea-description">{idea.description}</p>}</div>
+                              <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexShrink: 0 }}>
+                                {idea.isAiGenerated && <span className="badge badge-ai">{'\u2728'} AI</span>}
+                                <button className="btn btn-ghost btn-sm" onClick={() => deleteIdea(idea.id)} style={{ padding: '0.125rem 0.375rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>&times;</button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -844,7 +848,7 @@ export function WorkshopManage() {
               )}
               <div className="section-title">Prioriterte ideer <span style={{ fontSize: '0.8125rem', fontWeight: 400, color: 'var(--color-text-muted)' }}>&mdash; klikk for detaljer</span></div>
               {sessionIdeas.filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA').map(idea => {
-                const hkv = hkvQuestions.find(h => h.id === idea.hkvQuestionId);
+                const cl = idea.clusterId ? clusters.find(c => c.id === idea.clusterId) : null;
                 return (
                   <div key={idea.id} className="card" style={{ marginBottom: '0.75rem', cursor: 'pointer', transition: 'box-shadow 0.15s' }} onClick={() => openIdeaDetail(idea.id)}
                     onMouseEnter={e => (e.currentTarget.style.boxShadow = 'var(--shadow-md)')}
@@ -860,7 +864,7 @@ export function WorkshopManage() {
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                       <span className="badge badge-high">Nytte: {idea.score?.utilityValue}</span>
                       <span className="badge badge-high">Gjennomf.: {idea.score?.feasibility}</span>
-                      {hkv && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>HKV: {hkv.fullText.slice(0, 50)}...</span>}
+                      {cl && <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>Klynge: {cl.name}</span>}
                     </div>
                   </div>
                 );

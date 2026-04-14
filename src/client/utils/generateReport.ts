@@ -14,7 +14,7 @@ interface ReportData {
   clusters: { id: string; name: string; summary: string | null; sessionId: string; challenges: { id: string; text: string; participantName: string }[] }[];
   hkvQuestions: { id: string; fullText: string; isApproved: boolean; isAiGenerated: boolean; clusterId: string; clusterName: string; sessionId: string }[];
   ideas: {
-    id: string; title: string; description: string | null; isAiGenerated: boolean; sessionId: string; hkvQuestionId: string; hkvText: string; clusterName: string; participantName: string | null;
+    id: string; title: string; description: string | null; isAiGenerated: boolean; sessionId: string; hkvQuestionId: string | null; hkvText: string; clusterId: string | null; clusterName: string; participantName: string | null;
     score: { utilityValue: string; feasibility: string; matrixQuadrant: string; dataAvailability: string | null; systemReadiness: string | null; timeHorizon: string | null } | null;
     canvas: { problemStatement: string; solutionSummary: string; dataNeeds: string; stakeholders: string | null; firstSteps: string; expectedOutcome: string | null } | null;
   }[];

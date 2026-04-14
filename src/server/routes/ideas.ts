@@ -22,6 +22,7 @@ export function createIdeaRoutes(prisma: PrismaClient, io: SocketServer) {
     try {
       const where: Record<string, unknown> = { workshopId: req.params.workshopId };
       if (req.query.hkvQuestionId) where.hkvQuestionId = req.query.hkvQuestionId;
+      if (req.query.clusterId) where.clusterId = req.query.clusterId;
       if (req.query.sessionId) where.sessionId = req.query.sessionId;
 
       const ideas = await prisma.idea.findMany({
@@ -39,6 +40,7 @@ export function createIdeaRoutes(prisma: PrismaClient, io: SocketServer) {
         description: i.description,
         isAiGenerated: i.isAiGenerated,
         hkvQuestionId: i.hkvQuestionId,
+        clusterId: i.clusterId,
         sessionId: i.sessionId,
         participantName: i.participant?.name || null,
         score: i.score ? {
@@ -60,14 +62,15 @@ export function createIdeaRoutes(prisma: PrismaClient, io: SocketServer) {
   // Submit idea
   router.post('/', authenticateToken, requireWorkshopAccess, async (req, res) => {
     try {
-      const { title, description, hkvQuestionId, isAiGenerated, sessionId } = req.body;
+      const { title, description, hkvQuestionId, clusterId, isAiGenerated, sessionId } = req.body;
       const participantId = req.user!.role === 'participant' ? req.user!.id : null;
 
       const idea = await prisma.idea.create({
         data: {
           title,
           description,
-          hkvQuestionId,
+          hkvQuestionId: hkvQuestionId || null,
+          clusterId: clusterId || null,
           workshopId: req.params.workshopId,
           sessionId,
           participantId,
@@ -82,6 +85,8 @@ export function createIdeaRoutes(prisma: PrismaClient, io: SocketServer) {
         description: idea.description,
         isAiGenerated: idea.isAiGenerated,
         hkvQuestionId: idea.hkvQuestionId,
+        clusterId: idea.clusterId,
+        sessionId: idea.sessionId,
         participantName: idea.participant?.name || null,
         score: null,
         createdAt: idea.createdAt.toISOString(),
