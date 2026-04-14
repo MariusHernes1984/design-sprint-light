@@ -75,13 +75,19 @@ export async function suggestHkv(
   const result = await chatCompletion(
     `Du er en design thinking-fasilitator. Lag "Hvordan kan vi"-spørsmål fra problemklynger. Følg denne malen:
 "Hvordan kan vi [problem], slik at [gevinst], uten at [begrensning]?"
-Svar på norsk. Returner JSON.`,
+Svar på norsk. Returner JSON.
+VIKTIG: Bruk kort og enkelt språk. Hver del (problem, gevinst, begrensning) skal være maks 5-8 ord. Unngå fagspråk og lange setninger.`,
     `Klynge: "${clusterName}"
 Utfordringer i klyngen:
 ${listed}
 
 Lag 2-3 HKV-spørsmål som dekker essensen av disse utfordringene.
-Vær konkret og handlingsorientert. Unngå for generelle formuleringer.
+Vær konkret og handlingsorientert. Hold det kort og lettlest.
+
+Eksempel på god lengde:
+- problem: "forenkle rapporteringen"
+- benefit: "ansatte sparer tid"
+- constraint: "kvaliteten synker"
 
 Returner som JSON: { "questions": [{ "problem": "...", "benefit": "...", "constraint": "...", "fullText": "Hvordan kan vi ..., slik at ..., uten at ...?" }] }`,
   );
