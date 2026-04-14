@@ -53,6 +53,10 @@ export function WorkshopManage() {
   const [detailIdeaId, setDetailIdeaId] = useState<string | null>(null);
   const [detailCanvas, setDetailCanvas] = useState<{ problemStatement: string; solutionSummary: string; dataNeeds: string; stakeholders: string | null; firstSteps: string; expectedOutcome: string | null } | null>(null);
   const [showNewHkv, setShowNewHkv] = useState(false);
+  const [editingHkvId, setEditingHkvId] = useState<string | null>(null);
+  const [editHkvProblem, setEditHkvProblem] = useState('');
+  const [editHkvBenefit, setEditHkvBenefit] = useState('');
+  const [editHkvConstraint, setEditHkvConstraint] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -234,6 +238,34 @@ export function WorkshopManage() {
     setHkvQuestions(hk);
     setNewHkvProblem(''); setNewHkvBenefit(''); setNewHkvConstraint('');
     setShowNewHkv(false);
+  };
+
+  const startEditHkv = (h: HkvQuestionData) => {
+    setEditingHkvId(h.id);
+    setEditHkvProblem(h.problem);
+    setEditHkvBenefit(h.benefit);
+    setEditHkvConstraint(h.constraint);
+  };
+
+  const updateHkv = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingHkvId || !editHkvProblem.trim()) return;
+    const fullText = `Hvordan kan vi ${editHkvProblem.trim()}, slik at ${editHkvBenefit.trim() || '...'}, uten at ${editHkvConstraint.trim() || '...'}?`;
+    await api.patch(`/workshops/${id}/hkv/${editingHkvId}`, {
+      problem: editHkvProblem.trim(),
+      benefit: editHkvBenefit.trim(),
+      constraint: editHkvConstraint.trim(),
+    });
+    setHkvQuestions(prev => prev.map(q => q.id === editingHkvId ? { ...q, problem: editHkvProblem.trim(), benefit: editHkvBenefit.trim(), constraint: editHkvConstraint.trim(), fullText } : q));
+    setEditingHkvId(null);
+    flash('HKV oppdatert!');
+  };
+
+  const deleteHkv = async (hkvId: string) => {
+    if (!confirm('Slette dette HKV-sporsmaalet?')) return;
+    await api.delete(`/workshops/${id}/hkv/${hkvId}`);
+    setHkvQuestions(prev => prev.filter(q => q.id !== hkvId));
+    flash('HKV slettet');
   };
 
   // ---- Ideation AI ----
@@ -626,18 +658,47 @@ export function WorkshopManage() {
                   ) : (
                     sessionHkv.filter(h => h.clusterId === cl.id).map(h => (
                       <div key={h.id} className="hkv-card">
-                        <p className="hkv-text">{h.fullText}</p>
-                        <div className="hkv-meta">
-                          {h.isAiGenerated && <span className="badge badge-ai">{'\u2728'} AI</span>}
-                          {h.isApproved ? (
-                            <span className="badge badge-high">{'\u2713'} Godkjent</span>
-                          ) : (
-                            <div style={{ display: 'flex', gap: '0.375rem' }}>
-                              <button className="btn btn-success btn-sm" onClick={() => api.patch(`/workshops/${id}/hkv/${h.id}`, { isApproved: true }).then(() => setHkvQuestions(prev => prev.map(q => q.id === h.id ? { ...q, isApproved: true } : q)))}>{'\u2713'} Godkjenn</button>
-                              <button className="btn btn-ghost btn-sm" onClick={() => api.delete(`/workshops/${id}/hkv/${h.id}`).then(() => setHkvQuestions(prev => prev.filter(q => q.id !== h.id)))}>Slett</button>
+                        {editingHkvId === h.id ? (
+                          <form onSubmit={updateHkv}>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label style={{ fontSize: '0.75rem' }}>Hvordan kan vi... (problem)</label>
+                              <input className="form-input" value={editHkvProblem} onChange={e => setEditHkvProblem(e.target.value)} required />
                             </div>
-                          )}
-                        </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ fontSize: '0.75rem' }}>...slik at (gevinst)</label>
+                                <input className="form-input" value={editHkvBenefit} onChange={e => setEditHkvBenefit(e.target.value)} />
+                              </div>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ fontSize: '0.75rem' }}>...uten at (begrensning)</label>
+                                <input className="form-input" value={editHkvConstraint} onChange={e => setEditHkvConstraint(e.target.value)} />
+                              </div>
+                            </div>
+                            {editHkvProblem && (
+                              <div style={{ padding: '0.5rem', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', fontSize: '0.8125rem', fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>
+                                Hvordan kan vi {editHkvProblem}{editHkvBenefit ? `, slik at ${editHkvBenefit}` : ''}{editHkvConstraint ? `, uten at ${editHkvConstraint}` : ''}?
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+                              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setEditingHkvId(null)}>Avbryt</button>
+                              <button className="btn btn-primary btn-sm" type="submit">Lagre</button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <p className="hkv-text">{h.fullText}</p>
+                            <div className="hkv-meta">
+                              {h.isAiGenerated && <span className="badge badge-ai">{'\u2728'} AI</span>}
+                              {h.isApproved ? (
+                                <span className="badge badge-high">{'\u2713'} Godkjent</span>
+                              ) : (
+                                <button className="btn btn-success btn-sm" onClick={() => api.patch(`/workshops/${id}/hkv/${h.id}`, { isApproved: true }).then(() => setHkvQuestions(prev => prev.map(q => q.id === h.id ? { ...q, isApproved: true } : q)))}>{'\u2713'} Godkjenn</button>
+                              )}
+                              <button className="btn btn-ghost btn-sm" onClick={() => startEditHkv(h)}>Rediger</button>
+                              <button className="btn btn-ghost btn-sm" onClick={() => deleteHkv(h.id)} style={{ color: '#dc2626' }}>Slett</button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))
                   )}
