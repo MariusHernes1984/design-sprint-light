@@ -1169,8 +1169,8 @@ export function WorkshopManage() {
             )}
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {postItTexts.map((text, i) => (
-                <div key={i} className="card" style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                  <p style={{ flex: 1, fontSize: '0.875rem' }}>{text}</p>
+                <div key={i} className="card" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input className="form-input" value={text} onChange={e => setPostItTexts(prev => prev.map((t, idx) => idx === i ? e.target.value : t))} style={{ flex: 1, fontSize: '0.875rem' }} />
                   <button className="btn btn-ghost btn-sm" onClick={() => setPostItTexts(prev => prev.filter((_, idx) => idx !== i))} style={{ color: '#dc2626', flexShrink: 0 }}>&times;</button>
                 </div>
               ))}
