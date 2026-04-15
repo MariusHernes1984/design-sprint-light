@@ -20,13 +20,17 @@ interface ReportData {
   }[];
 }
 
-const COLORS = {
-  ateaGreen: [0, 138, 0] as [number, number, number],
-  ateaGrey: [77, 87, 93] as [number, number, number],
-  lightGrey: [237, 238, 238] as [number, number, number],
+// Atea brand colors (from PDF guide)
+const C = {
+  green: [0, 138, 0] as [number, number, number],
+  darkGrey: [51, 51, 51] as [number, number, number],
+  midGrey: [77, 87, 93] as [number, number, number],
+  textBody: [60, 60, 60] as [number, number, number],
+  textMuted: [130, 130, 130] as [number, number, number],
+  lightBg: [245, 246, 247] as [number, number, number],
+  greenLight: [230, 245, 230] as [number, number, number],
   white: [255, 255, 255] as [number, number, number],
   black: [0, 0, 0] as [number, number, number],
-  textSecondary: [107, 114, 128] as [number, number, number],
 };
 
 const QUAD_LABELS: Record<string, string> = {
@@ -42,11 +46,11 @@ const VALUE_LABELS: Record<string, string> = {
   LOW: 'Lav',
 };
 
-const PAGE_W = 210;
-const MARGIN = 20;
-const CONTENT_W = PAGE_W - 2 * MARGIN;
+const PW = 210; // page width
+const PH = 297; // page height
+const M = 25;   // margin
+const CW = PW - 2 * M; // content width
 
-// Safe string — ensure we never pass null/undefined to jsPDF text methods
 function s(val: unknown): string {
   if (val == null) return '';
   return String(val);
@@ -55,99 +59,248 @@ function s(val: unknown): string {
 export function generateReport(data: ReportData): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = 0;
+  let pageNum = 0;
 
   const ensureSpace = (needed: number) => {
-    if (y + needed > 277) {
+    if (y + needed > PH - 20) {
       doc.addPage();
-      y = MARGIN;
+      pageNum++;
+      y = M;
+      drawHeader();
     }
   };
 
-  const drawFooter = (pageNum: number) => {
-    doc.setFontSize(8);
-    doc.setTextColor(...COLORS.textSecondary);
-    doc.text('Design Sprint Light  |  ' + s(data.workshop.title), MARGIN, 290);
-    doc.text('Side ' + pageNum, PAGE_W - MARGIN, 290, { align: 'right' });
+  const drawHeader = () => {
+    // Thin green top line (Atea style)
+    doc.setFillColor(...C.green);
+    doc.rect(0, 0, PW, 2.5, 'F');
+  };
+
+  const drawFooter = () => {
+    // Bottom bar
+    doc.setDrawColor(...C.lightBg);
+    doc.setLineWidth(0.3);
+    doc.line(M, PH - 15, PW - M, PH - 15);
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.textMuted);
+    doc.text(s(data.workshop.title) + '  |  Design Sprint Light', M, PH - 10);
+    doc.text(String(pageNum), PW - M, PH - 10, { align: 'right' });
+
+    // Green bottom accent
+    doc.setFillColor(...C.green);
+    doc.rect(0, PH - 3, PW, 3, 'F');
+  };
+
+  // Helper: section heading (large, bold, dark)
+  const sectionHeading = (text: string) => {
+    ensureSpace(20);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.darkGrey);
+    doc.text(text, M, y);
+    y += 4;
+    // Green underline
+    doc.setDrawColor(...C.green);
+    doc.setLineWidth(1);
+    doc.line(M, y, M + 35, y);
+    y += 10;
+  };
+
+  // Helper: sub heading
+  const subHeading = (text: string) => {
+    ensureSpace(12);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.darkGrey);
+    doc.text(text, M, y);
+    y += 7;
+  };
+
+  // Helper: body text
+  const bodyText = (text: string, indent = 0) => {
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.textBody);
+    const lines = doc.splitTextToSize(text, CW - indent);
+    for (const line of lines) {
+      ensureSpace(5);
+      doc.text(line, M + indent, y);
+      y += 4.5;
+    }
+  };
+
+  // Helper: quote box (green left border, light bg)
+  const quoteBox = (text: string) => {
+    doc.setFontSize(9.5);
+    const lines = doc.splitTextToSize(text, CW - 14);
+    const boxH = lines.length * 5 + 6;
+    ensureSpace(boxH + 4);
+
+    // Light green background
+    doc.setFillColor(...C.greenLight);
+    doc.roundedRect(M, y - 2, CW, boxH, 1, 1, 'F');
+
+    // Green left border
+    doc.setFillColor(...C.green);
+    doc.rect(M, y - 2, 2.5, boxH, 'F');
+
+    // Quote text
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...C.darkGrey);
+    doc.text(lines, M + 8, y + 3);
+    y += boxH + 4;
+  };
+
+  // Helper: info row (label: value)
+  const infoRow = (label: string, value: string) => {
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.midGrey);
+    doc.text(label, M, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.textBody);
+    doc.text(value, M + 42, y);
+    y += 6;
   };
 
   // ===================================
-  // PAGE 1: COVER
+  // COVER PAGE
   // ===================================
-  doc.setFillColor(...COLORS.ateaGreen);
-  doc.rect(0, 0, PAGE_W, 6, 'F');
+  pageNum = 1;
 
-  // Logo
-  doc.setFillColor(...COLORS.ateaGrey);
-  doc.roundedRect(MARGIN, 35, 16, 16, 3, 3, 'F');
-  doc.setTextColor(...COLORS.white);
-  doc.setFontSize(12);
+  // Full-height dark background
+  doc.setFillColor(35, 40, 45);
+  doc.rect(0, 0, PW, PH, 'F');
+
+  // Green accent strip at top
+  doc.setFillColor(...C.green);
+  doc.rect(0, 0, PW, 4, 'F');
+
+  // Large title
+  doc.setFontSize(38);
   doc.setFont('helvetica', 'bold');
-  doc.text('DS', MARGIN + 8, 45, { align: 'center' });
+  doc.setTextColor(...C.white);
+  const titleLines = doc.splitTextToSize(s(data.workshop.title), CW);
+  doc.text(titleLines, M, 80);
 
-  doc.setTextColor(...COLORS.ateaGrey);
-  doc.setFontSize(14);
-  doc.text('Design Sprint Light', MARGIN + 20, 45);
+  let cy = 80 + titleLines.length * 16;
 
-  // Title
+  // Subtitle/description
+  if (data.workshop.description) {
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(200, 200, 200);
+    const descLines = doc.splitTextToSize(s(data.workshop.description), CW);
+    doc.text(descLines, M, cy + 5);
+    cy += 5 + descLines.length * 7;
+  }
+
+  // Green divider
+  cy += 15;
+  doc.setFillColor(...C.green);
+  doc.rect(M, cy, 50, 2, 'F');
+  cy += 20;
+
+  // Metadata on cover
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(180, 180, 180);
+
+  const coverMeta: [string, string][] = [];
+  if (data.workshop.customerName) coverMeta.push(['Kunde', s(data.workshop.customerName)]);
+  coverMeta.push(['Fasilitator', s(data.workshop.facilitatorName)]);
+  try {
+    coverMeta.push(['Dato', new Date(data.workshop.createdAt).toLocaleDateString('nb-NO', { year: 'numeric', month: 'long', day: 'numeric' })]);
+  } catch {
+    coverMeta.push(['Dato', s(data.workshop.createdAt)]);
+  }
+
+  for (const [label, value] of coverMeta) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.white);
+    doc.text(label, M, cy);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 180, 180);
+    doc.text(value, M + 35, cy);
+    cy += 8;
+  }
+
+  // ATEA logo at bottom
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text('ATEA', PW - M, PH - 20, { align: 'right' });
+
+  // Small tagline
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(140, 140, 140);
+  doc.text('Design Sprint Light  |  Workshop-rapport', PW - M, PH - 13, { align: 'right' });
+
+  // ===================================
+  // TABLE OF CONTENTS
+  // ===================================
+  doc.addPage();
+  pageNum = 2;
+  drawHeader();
+  y = M + 10;
+
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...COLORS.black);
-  const titleLines = doc.splitTextToSize(s(data.workshop.title), CONTENT_W);
-  doc.text(titleLines, MARGIN, 80);
+  doc.setTextColor(...C.darkGrey);
+  doc.text('Innhold', M, y);
+  y += 5;
+  doc.setFillColor(...C.green);
+  doc.rect(M, y, 30, 1.5, 'F');
+  y += 15;
 
-  let coverY = 80 + titleLines.length * 12;
+  // TOC entries
+  const tocEntries: string[] = [];
+  for (const session of (data.sessions || [])) {
+    tocEntries.push(session.title);
+  }
+  if ((data.sessions || []).length > 1) {
+    tocEntries.push('Samlet oppsummering');
+  }
 
-  if (data.workshop.description) {
-    doc.setFontSize(12);
+  let tocPage = 3;
+  for (const entry of tocEntries) {
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...COLORS.textSecondary);
-    const descLines = doc.splitTextToSize(s(data.workshop.description), CONTENT_W);
-    doc.text(descLines, MARGIN, coverY + 5);
-    coverY += 5 + descLines.length * 6;
+    doc.setTextColor(...C.textBody);
+    doc.text(entry, M, y);
+
+    // Dotted leader line
+    const entryWidth = doc.getTextWidth(entry);
+    const pageNumStr = String(tocPage);
+    const pageNumWidth = doc.getTextWidth(pageNumStr);
+    const dotsStart = M + entryWidth + 3;
+    const dotsEnd = PW - M - pageNumWidth - 3;
+
+    doc.setTextColor(...C.textMuted);
+    let dx = dotsStart;
+    while (dx < dotsEnd) {
+      doc.text('.', dx, y);
+      dx += 2.5;
+    }
+    doc.text(pageNumStr, PW - M, y, { align: 'right' });
+
+    y += 9;
+    tocPage++;
   }
 
-  // Green separator
-  coverY += 10;
-  doc.setDrawColor(...COLORS.ateaGreen);
-  doc.setLineWidth(0.75);
-  doc.line(MARGIN, coverY, MARGIN + 40, coverY);
-  coverY += 15;
-
-  // Metadata
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...COLORS.ateaGrey);
-
-  const metaItems: [string, string][] = [];
-  if (data.workshop.customerName) metaItems.push(['Kunde', s(data.workshop.customerName)]);
-  metaItems.push(['Fasilitator', s(data.workshop.facilitatorName)]);
-  try {
-    metaItems.push(['Dato', new Date(data.workshop.createdAt).toLocaleDateString('nb-NO', { year: 'numeric', month: 'long', day: 'numeric' })]);
-  } catch {
-    metaItems.push(['Dato', s(data.workshop.createdAt)]);
-  }
-  metaItems.push(['Antall okter', String(data.sessions?.length || 0)]);
-  metaItems.push(['Totalt utfordringer', String(data.challenges?.length || 0)]);
-  metaItems.push(['Totalt ideer', String(data.ideas?.length || 0)]);
-  metaItems.push(['Prioriterte ideer', String((data.ideas || []).filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA').length)]);
-
-  for (const [label, value] of metaItems) {
-    doc.setFont('helvetica', 'bold');
-    doc.text(label + ':', MARGIN, coverY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(value, MARGIN + 40, coverY);
-    coverY += 7;
-  }
+  drawFooter();
 
   // ===================================
   // PER-SESSION PAGES
   // ===================================
-  let pageNum = 1;
-
   for (const session of (data.sessions || [])) {
     doc.addPage();
     pageNum++;
-    y = MARGIN;
+    y = M + 10;
+    drawHeader();
 
     const sChallenges = (data.challenges || []).filter(c => c.sessionId === session.id);
     const sClusters = (data.clusters || []).filter(c => c.sessionId === session.id);
@@ -155,174 +308,152 @@ export function generateReport(data: ReportData): void {
     const sIdeas = (data.ideas || []).filter(i => i.sessionId === session.id);
     const sPrioritized = sIdeas.filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA');
 
-    // Session header
-    doc.setFillColor(...COLORS.ateaGreen);
-    doc.rect(0, 0, PAGE_W, 3, 'F');
-
-    doc.setFontSize(20);
+    // Session title
+    doc.setFontSize(28);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...COLORS.black);
-    doc.text(s(session.title), MARGIN, y + 5);
-    y += 12;
+    doc.setTextColor(...C.darkGrey);
+    const sessLines = doc.splitTextToSize(s(session.title), CW);
+    doc.text(sessLines, M, y);
+    y += sessLines.length * 12 + 2;
 
-    // Stats bar
-    doc.setFillColor(...COLORS.lightGrey);
-    doc.roundedRect(MARGIN, y, CONTENT_W, 12, 2, 2, 'F');
+    // Green underline
+    doc.setFillColor(...C.green);
+    doc.rect(M, y, 35, 1.5, 'F');
+    y += 10;
+
+    // Stats summary
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...COLORS.ateaGrey);
-    const stats = sChallenges.length + ' utfordringer   |   ' + sClusters.length + ' klynger   |   ' + sHkv.length + ' HKV   |   ' + sIdeas.length + ' ideer   |   ' + sPrioritized.length + ' prioritert';
-    doc.text(stats, PAGE_W / 2, y + 7.5, { align: 'center' });
-    y += 18;
+    doc.setTextColor(...C.midGrey);
+    const statsText = `${sChallenges.length} utfordringer   \u00B7   ${sClusters.length} klynger   \u00B7   ${sHkv.length} HKV   \u00B7   ${sIdeas.length} ideer   \u00B7   ${sPrioritized.length} prioritert`;
+    doc.text(statsText, M, y);
+    y += 12;
 
     // --- Challenges ---
     if (sChallenges.length > 0) {
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.ateaGreen);
-      doc.text('Utfordringer', MARGIN, y);
-      y += 7;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...COLORS.ateaGrey);
+      sectionHeading('Utfordringer');
 
       for (const c of sChallenges) {
-        ensureSpace(8);
-        const lines = doc.splitTextToSize('-  ' + s(c.text), CONTENT_W - 4);
-        doc.text(lines, MARGIN + 2, y);
-        y += lines.length * 4.5;
+        ensureSpace(7);
+        doc.setFontSize(9.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C.textBody);
+
+        // Bullet
+        doc.setFillColor(...C.green);
+        doc.circle(M + 2, y - 1.2, 1, 'F');
+
+        const cLines = doc.splitTextToSize(s(c.text), CW - 10);
+        doc.text(cLines, M + 7, y);
+        y += cLines.length * 4.5 + 1.5;
       }
-      y += 5;
+      y += 6;
     }
 
     // --- Clusters ---
     if (sClusters.length > 0) {
-      ensureSpace(15);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.ateaGreen);
-      doc.text('Klynger', MARGIN, y);
-      y += 7;
+      sectionHeading('Klynger');
 
       for (const cl of sClusters) {
-        ensureSpace(15);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...COLORS.black);
-        doc.text(s(cl.name), MARGIN + 2, y);
-        y += 5;
+        ensureSpace(18);
+
+        // Cluster name with green accent
+        subHeading(s(cl.name));
 
         if (cl.summary) {
-          doc.setFontSize(8.5);
+          doc.setFontSize(9);
           doc.setFont('helvetica', 'italic');
-          doc.setTextColor(...COLORS.textSecondary);
-          const sumLines = doc.splitTextToSize(s(cl.summary), CONTENT_W - 8);
-          doc.text(sumLines, MARGIN + 4, y);
-          y += sumLines.length * 4;
+          doc.setTextColor(...C.textMuted);
+          const sumLines = doc.splitTextToSize(s(cl.summary), CW - 8);
+          doc.text(sumLines, M + 4, y);
+          y += sumLines.length * 4.2 + 2;
         }
 
-        doc.setFontSize(8.5);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...COLORS.ateaGrey);
+        doc.setTextColor(...C.textBody);
         for (const ch of (cl.challenges || [])) {
           ensureSpace(6);
-          const lines = doc.splitTextToSize('- ' + s(ch.text), CONTENT_W - 10);
-          doc.text(lines, MARGIN + 6, y);
-          y += lines.length * 4;
+          doc.setFillColor(...C.midGrey);
+          doc.circle(M + 6, y - 1, 0.7, 'F');
+          const chLines = doc.splitTextToSize(s(ch.text), CW - 16);
+          doc.text(chLines, M + 10, y);
+          y += chLines.length * 4;
         }
-        y += 4;
+        y += 5;
       }
     }
 
     // --- HKV ---
     if (sHkv.length > 0) {
-      ensureSpace(15);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.ateaGreen);
-      doc.text('HKV-sporsmaal', MARGIN, y);
-      y += 7;
+      sectionHeading('HKV-sporsmaal');
 
       for (const h of sHkv) {
-        ensureSpace(12);
-        doc.setFillColor(230, 245, 230);
-        const hLines = doc.splitTextToSize(s(h.fullText), CONTENT_W - 12);
-        const hHeight = hLines.length * 5 + 4;
-        doc.roundedRect(MARGIN, y - 3, CONTENT_W, hHeight, 1.5, 1.5, 'F');
-
-        doc.setDrawColor(...COLORS.ateaGreen);
-        doc.setLineWidth(0.5);
-        doc.line(MARGIN, y - 3, MARGIN, y - 3 + hHeight);
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(...COLORS.black);
-        doc.text(hLines, MARGIN + 4, y + 1);
-        y += hHeight + 4;
+        quoteBox(s(h.fullText));
       }
+      y += 4;
     }
 
     // --- Prioritized Ideas ---
     if (sPrioritized.length > 0) {
-      ensureSpace(15);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.ateaGreen);
-      doc.text('Prioriterte ideer (' + sPrioritized.length + ')', MARGIN, y);
-      y += 8;
+      sectionHeading('Prioriterte ideer');
 
       for (const idea of sPrioritized) {
-        ensureSpace(30);
-        const startY = y - 2;
+        ensureSpace(35);
+
+        // Card background
+        const cardStartY = y - 3;
 
         // Title
-        doc.setFontSize(11);
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...COLORS.black);
-        doc.text(s(idea.title), MARGIN + 4, y + 2);
+        doc.setTextColor(...C.darkGrey);
+        doc.text(s(idea.title), M + 6, y + 1);
         y += 7;
 
         // Description
         if (idea.description) {
-          doc.setFontSize(8.5);
+          doc.setFontSize(9);
           doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...COLORS.ateaGrey);
-          const dLines = doc.splitTextToSize(s(idea.description), CONTENT_W - 12);
-          doc.text(dLines, MARGIN + 4, y);
-          y += dLines.length * 4 + 2;
+          doc.setTextColor(...C.textBody);
+          const dLines = doc.splitTextToSize(s(idea.description), CW - 14);
+          for (const line of dLines) {
+            ensureSpace(5);
+            doc.text(line, M + 6, y);
+            y += 4.2;
+          }
+          y += 2;
         }
 
-        // HKV reference
-        if (idea.hkvText) {
+        // Cluster reference
+        if (idea.clusterName) {
           doc.setFontSize(8);
           doc.setFont('helvetica', 'italic');
-          doc.setTextColor(...COLORS.textSecondary);
-          const hkvRef = doc.splitTextToSize('HKV: ' + s(idea.hkvText), CONTENT_W - 12);
-          doc.text(hkvRef, MARGIN + 4, y);
-          y += hkvRef.length * 3.5 + 2;
+          doc.setTextColor(...C.textMuted);
+          doc.text('Klynge: ' + s(idea.clusterName), M + 6, y);
+          y += 5;
         }
 
-        // Score
+        // Score badges
         if (idea.score) {
+          ensureSpace(8);
           doc.setFontSize(8.5);
           doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...COLORS.ateaGrey);
-          const scoreText = 'Nytte: ' + (VALUE_LABELS[idea.score.utilityValue] || idea.score.utilityValue) +
-            '  |  Gjennomforbarhet: ' + (VALUE_LABELS[idea.score.feasibility] || idea.score.feasibility) +
-            '  |  ' + (QUAD_LABELS[idea.score.matrixQuadrant] || idea.score.matrixQuadrant);
-          doc.text(scoreText, MARGIN + 4, y);
+          doc.setTextColor(...C.midGrey);
+
+          const scoreParts = [
+            'Nytte: ' + (VALUE_LABELS[idea.score.utilityValue] || idea.score.utilityValue),
+            'Gjennomforbarhet: ' + (VALUE_LABELS[idea.score.feasibility] || idea.score.feasibility),
+            QUAD_LABELS[idea.score.matrixQuadrant] || idea.score.matrixQuadrant,
+          ];
+          doc.text(scoreParts.join('   \u00B7   '), M + 6, y);
           y += 6;
         }
 
         // Canvas
         if (idea.canvas) {
-          ensureSpace(30);
-          doc.setFontSize(8.5);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...COLORS.ateaGreen);
-          doc.text('Idecanvas:', MARGIN + 4, y);
-          y += 5;
+          ensureSpace(20);
+          y += 2;
 
           const canvasFields: [string, string][] = [];
           if (idea.canvas.problemStatement) canvasFields.push(['Problemstilling', s(idea.canvas.problemStatement)]);
@@ -333,32 +464,40 @@ export function generateReport(data: ReportData): void {
           if (idea.canvas.expectedOutcome) canvasFields.push(['Forventet effekt', s(idea.canvas.expectedOutcome)]);
 
           for (const [label, value] of canvasFields) {
-            ensureSpace(10);
-            doc.setFontSize(8);
+            ensureSpace(12);
+            doc.setFontSize(8.5);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...COLORS.ateaGrey);
-            doc.text(label + ':', MARGIN + 6, y);
+            doc.setTextColor(...C.green);
+            doc.text(label, M + 8, y);
             y += 4;
 
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(...COLORS.black);
-            const vLines = doc.splitTextToSize(value, CONTENT_W - 16);
-            doc.text(vLines, MARGIN + 6, y);
-            y += vLines.length * 3.8 + 2;
+            doc.setTextColor(...C.textBody);
+            const vLines = doc.splitTextToSize(value, CW - 18);
+            for (const vl of vLines) {
+              ensureSpace(4.5);
+              doc.text(vl, M + 8, y);
+              y += 4;
+            }
+            y += 2;
           }
         }
 
-        // Left border on idea card
-        const cardH = y - startY + 2;
-        doc.setDrawColor(...COLORS.ateaGreen);
-        doc.setLineWidth(1);
-        doc.line(MARGIN, startY, MARGIN, startY + cardH);
+        // Green left border on entire card
+        const cardH = y - cardStartY;
+        doc.setFillColor(...C.green);
+        doc.rect(M, cardStartY, 2, cardH, 'F');
 
+        // Light separator
+        y += 3;
+        doc.setDrawColor(...C.lightBg);
+        doc.setLineWidth(0.3);
+        doc.line(M, y, PW - M, y);
         y += 6;
       }
     }
 
-    drawFooter(pageNum);
+    drawFooter();
   }
 
   // ===================================
@@ -367,18 +506,20 @@ export function generateReport(data: ReportData): void {
   if ((data.sessions || []).length > 1) {
     doc.addPage();
     pageNum++;
-    y = MARGIN;
+    y = M + 10;
+    drawHeader();
 
-    doc.setFillColor(...COLORS.ateaGreen);
-    doc.rect(0, 0, PAGE_W, 3, 'F');
-
-    doc.setFontSize(20);
+    // Title
+    doc.setFontSize(28);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...COLORS.black);
-    doc.text('Samlet oppsummering', MARGIN, y + 5);
+    doc.setTextColor(...C.darkGrey);
+    doc.text('Samlet oppsummering', M, y);
+    y += 5;
+    doc.setFillColor(...C.green);
+    doc.rect(M, y, 35, 1.5, 'F');
     y += 15;
 
-    // Per-session stats table using autoTable function API
+    // Per-session stats table
     const tableBody = data.sessions.map(sess => {
       const sc = (data.challenges || []).filter(c => c.sessionId === sess.id);
       const scl = (data.clusters || []).filter(c => c.sessionId === sess.id);
@@ -391,33 +532,41 @@ export function generateReport(data: ReportData): void {
       startY: y,
       head: [['Okt', 'Utfordringer', 'Klynger', 'Ideer', 'Prioritert']],
       body: tableBody,
-      theme: 'grid',
-      headStyles: { fillColor: COLORS.ateaGreen, textColor: COLORS.white, fontSize: 9, font: 'helvetica', fontStyle: 'bold' },
-      bodyStyles: { fontSize: 9, textColor: COLORS.ateaGrey },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: MARGIN, right: MARGIN },
+      theme: 'plain',
+      headStyles: {
+        fillColor: C.green,
+        textColor: C.white,
+        fontSize: 9,
+        font: 'helvetica',
+        fontStyle: 'bold',
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: C.textBody,
+        cellPadding: 3.5,
+      },
+      alternateRowStyles: { fillColor: C.lightBg },
+      margin: { left: M, right: M },
+      tableLineColor: [220, 220, 220],
+      tableLineWidth: 0.2,
     });
 
-    // Get the Y position after the table
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     y = (doc as any).lastAutoTable?.finalY ?? y + 40;
-    y += 10;
+    y += 12;
 
-    // All prioritized ideas
+    // All prioritized ideas table
     const allPrioritized = (data.ideas || []).filter(i => i.score?.matrixQuadrant === 'PRIORITER_NA');
     if (allPrioritized.length > 0) {
-      ensureSpace(15);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.ateaGreen);
-      doc.text('Alle prioriterte ideer (' + allPrioritized.length + ')', MARGIN, y);
-      y += 7;
+      sectionHeading('Alle prioriterte ideer');
 
       const ideaTableBody = allPrioritized.map(i => {
         const sessionTitle = data.sessions.find(sess => sess.id === i.sessionId)?.title || '';
         return [
           s(i.title),
           s(sessionTitle),
+          s(i.clusterName),
           VALUE_LABELS[i.score?.utilityValue || ''] || '',
           VALUE_LABELS[i.score?.feasibility || ''] || '',
           QUAD_LABELS[i.score?.matrixQuadrant || ''] || '',
@@ -426,18 +575,35 @@ export function generateReport(data: ReportData): void {
 
       autoTable(doc, {
         startY: y,
-        head: [['Ide', 'Okt', 'Nytte', 'Gjennomf.', 'Kvadrant']],
+        head: [['Ide', 'Okt', 'Klynge', 'Nytte', 'Gjennomf.', 'Kvadrant']],
         body: ideaTableBody,
-        theme: 'grid',
-        headStyles: { fillColor: COLORS.ateaGreen, textColor: COLORS.white, fontSize: 8.5, font: 'helvetica', fontStyle: 'bold' },
-        bodyStyles: { fontSize: 8.5, textColor: COLORS.ateaGrey },
-        columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: 30 } },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: MARGIN, right: MARGIN },
+        theme: 'plain',
+        headStyles: {
+          fillColor: C.green,
+          textColor: C.white,
+          fontSize: 8.5,
+          font: 'helvetica',
+          fontStyle: 'bold',
+          cellPadding: 3.5,
+        },
+        bodyStyles: {
+          fontSize: 8.5,
+          textColor: C.textBody,
+          cellPadding: 3,
+        },
+        columnStyles: {
+          0: { cellWidth: 42 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 28 },
+        },
+        alternateRowStyles: { fillColor: C.lightBg },
+        margin: { left: M, right: M },
+        tableLineColor: [220, 220, 220],
+        tableLineWidth: 0.2,
       });
     }
 
-    drawFooter(pageNum);
+    drawFooter();
   }
 
   // ===================================
